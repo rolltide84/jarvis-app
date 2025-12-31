@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, Lock, Brain, Clock, AlertCircle, Check, Plus, Settings, X, Eye, Trash2, Download, Bell, Calendar } from 'lucide-react';
+import { Shield, Lock, Brain, Clock, AlertCircle, Check, Plus, Settings, Eye, Trash2, Download, Bell, Calendar } from 'lucide-react';
 
 // Types
 const TIME_OF_DAY = ['morning', 'afternoon', 'evening', 'night'];
@@ -43,7 +44,7 @@ class EncryptionManager {
     );
     return {
       iv: Array.from(iv),
-      cipher: Array.from(new Uint8Array(cipher))
+      cipher: Array.from(new Uint8Array(cipher)),
     };
   }
 
@@ -78,11 +79,11 @@ class NotificationManager {
   async notify(title, body, tag) {
     if (this.permission === 'granted' && 'Notification' in window) {
       if (!this.notifiedTasks.has(tag)) {
+        // icon must be a URL or omit it
         new Notification(title, {
           body,
-          icon: '🤖',
           tag,
-          requireInteraction: false
+          requireInteraction: false,
         });
         this.notifiedTasks.add(tag);
       }
@@ -134,14 +135,14 @@ END:VCALENDAR`;
 // Baseline scoring function
 function baselineScore(task, context) {
   const now = context.now;
-  const hoursToDue = task.dueAt 
-    ? Math.max(0, (task.dueAt - now) / (1000 * 60 * 60)) 
+  const hoursToDue = task.dueAt
+    ? Math.max(0, (task.dueAt - now) / (1000 * 60 * 60))
     : Infinity;
 
-  const deadlineWeight = task.dueAt 
-    ? Math.exp(-hoursToDue / 48) * 5 
+  const deadlineWeight = task.dueAt
+    ? Math.exp(-hoursToDue / 48) * 5
     : 0;
-  
+
   const urgencyWeight = task.urgency * 2;
 
   const effort = task.effortMins || 60;
@@ -176,7 +177,7 @@ class AdaptiveModel {
       task.tags.includes('deep_work') ? 1 : 0,
       task.tags.includes('urgent') ? 1 : 0,
       task.completionCount || 0,
-      1
+      1,
     ]);
   }
 
@@ -207,14 +208,14 @@ function App() {
     now: Date.now(),
     timeOfDay: 'afternoon',
     availableMins: 60,
-    locationTag: null
+    locationTag: null,
   });
   const [settings, setSettings] = useState({
     adaptiveAlpha: 0.3,
     enableAdaptive: true,
     explainRankings: true,
     notificationsEnabled: false,
-    notificationMinutes: 60
+    notificationMinutes: 60,
   });
   const [showAddTask, setShowAddTask] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -227,6 +228,7 @@ function App() {
       loadSettings();
       setInitialized(true);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -241,7 +243,7 @@ function App() {
       setContext(prev => ({
         ...prev,
         now: Date.now(),
-        timeOfDay
+        timeOfDay,
       }));
     };
 
@@ -276,7 +278,7 @@ function App() {
     checkNotifications();
     const interval = setInterval(checkNotifications, 60000);
     return () => clearInterval(interval);
-  }, [tasks, settings.notificationsEnabled, settings.notificationMinutes]);
+  }, [tasks, settings.notificationsEnabled, settings.notificationMinutes, notificationManager]);
 
   const saveTasks = async (tasksToSave) => {
     try {
@@ -330,7 +332,7 @@ function App() {
     try {
       const stored = localStorage.getItem('jarvisSettings');
       if (stored) {
-        setSettings(prev => ({...prev, ...JSON.parse(stored)}));
+        setSettings(prev => ({ ...prev, ...JSON.parse(stored) }));
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -342,7 +344,7 @@ function App() {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
       completionCount: 0,
-      ...taskData
+      ...taskData,
     };
     const updatedTasks = [...tasks, newTask];
     setTasks(updatedTasks);
@@ -362,12 +364,12 @@ function App() {
     const completedTask = {
       ...taskToComplete,
       completedAt: Date.now(),
-      completionCount: (taskToComplete.completionCount || 0) + 1
+      completionCount: (taskToComplete.completionCount || 0) + 1,
     };
 
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     const updatedCompleted = [...completedTasks, completedTask];
-    
+
     setTasks(updatedTasks);
     setCompletedTasks(updatedCompleted);
     saveTasks(updatedTasks);
@@ -405,7 +407,7 @@ function App() {
       const completedDate = new Date(task.completedAt).toLocaleString();
       const createdDate = new Date(task.createdAt).toLocaleString();
       const dueDate = task.dueAt ? new Date(task.dueAt).toLocaleString() : 'No deadline';
-      
+
       return `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Task: ${task.title}
@@ -459,10 +461,10 @@ Completion Count: ${task.completionCount}
       try {
         const granted = await notificationManager.requestPermission();
         if (granted) {
-          const newSettings = {...settings, notificationsEnabled: true};
+          const newSettings = { ...settings, notificationsEnabled: true };
           setSettings(newSettings);
           saveSettings(newSettings);
-          
+
           // Send a test notification
           notificationManager.notify(
             '✅ JARVIS Notifications Enabled!',
@@ -477,10 +479,32 @@ Completion Count: ${task.completionCount}
         alert('❌ Failed to enable notifications. Please check your browser settings.');
       }
     } else {
-      const newSettings = {...settings, notificationsEnabled: false};
+      const newSettings = { ...settings, notificationsEnabled: false };
       setSettings(newSettings);
       saveSettings(newSettings);
     }
+  };
+
+  const getExplanation = (task, context, baseScore, adaptiveScore) => {
+    const reasons = [];
+
+    if (task.dueAt) {
+      const hours = Math.round((task.dueAt - context.now) / (1000 * 60 * 60));
+      if (hours < 0) reasons.push('OVERDUE!');
+      else if (hours < 1) reasons.push('Due in <1h');
+      else if (hours < 24) reasons.push(`Due in ${hours}h`);
+      else reasons.push(`Due in ${Math.round(hours / 24)}d`);
+    }
+
+    if (task.urgency >= 4) reasons.push('High urgency');
+    if (task.tags.includes(context.timeOfDay)) reasons.push(`Fits ${context.timeOfDay}`);
+    if (settings.enableAdaptive && adaptiveScore > 0.6) reasons.push('Often chosen');
+    if (task.lastDoneAt) {
+      const daysSince = Math.round((context.now - task.lastDoneAt) / (1000 * 60 * 60 * 24));
+      if (daysSince > 7) reasons.push(`Last done ${daysSince}d ago`);
+    }
+
+    return reasons;
   };
 
   const getRankedTasks = useCallback(() => {
@@ -492,8 +516,8 @@ Completion Count: ${task.completionCount}
       if (settings.enableAdaptive && adaptiveModel.enabled) {
         const features = adaptiveModel.extractFeatures(task, context, baseScore);
         adaptiveScore = adaptiveModel.predict(features);
-        finalScore = settings.adaptiveAlpha * baseScore + 
-                    (1 - settings.adaptiveAlpha) * adaptiveScore * 10;
+        finalScore = settings.adaptiveAlpha * baseScore +
+          (1 - settings.adaptiveAlpha) * adaptiveScore * 10;
       }
 
       const explanation = getExplanation(task, context, baseScore, adaptiveScore);
@@ -503,32 +527,10 @@ Completion Count: ${task.completionCount}
         baseScore,
         adaptiveScore,
         finalScore,
-        explanation
+        explanation,
       };
     }).sort((a, b) => b.finalScore - a.finalScore);
-  }, [tasks, context, settings]);
-
-  const getExplanation = (task, context, baseScore, adaptiveScore) => {
-    const reasons = [];
-    
-    if (task.dueAt) {
-      const hours = Math.round((task.dueAt - context.now) / (1000 * 60 * 60));
-      if (hours < 0) reasons.push('OVERDUE!');
-      else if (hours < 1) reasons.push('Due in <1h');
-      else if (hours < 24) reasons.push(`Due in ${hours}h`);
-      else reasons.push(`Due in ${Math.round(hours/24)}d`);
-    }
-    
-    if (task.urgency >= 4) reasons.push('High urgency');
-    if (task.tags.includes(context.timeOfDay)) reasons.push(`Fits ${context.timeOfDay}`);
-    if (settings.enableAdaptive && adaptiveScore > 0.6) reasons.push('Often chosen');
-    if (task.lastDoneAt) {
-      const daysSince = Math.round((context.now - task.lastDoneAt) / (1000 * 60 * 60 * 24));
-      if (daysSince > 7) reasons.push(`Last done ${daysSince}d ago`);
-    }
-    
-    return reasons;
-  };
+  }, [tasks, context, settings, adaptiveModel]);
 
   const rankedTasks = getRankedTasks();
 
@@ -578,7 +580,7 @@ Completion Count: ${task.completionCount}
               </button>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-6 text-sm text-slate-400">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
@@ -601,7 +603,7 @@ Completion Count: ${task.completionCount}
               <Settings className="w-5 h-5" />
               Settings
             </h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="flex items-center justify-between mb-2">
@@ -610,7 +612,7 @@ Completion Count: ${task.completionCount}
                     {!('Notification' in window) && (
                       <span className="text-xs text-red-400">(Not supported)</span>
                     )}
-                    {Notification.permission === 'denied' && (
+                    {('Notification' in window) && Notification.permission === 'denied' && (
                       <span className="text-xs text-yellow-400">(Blocked in browser)</span>
                     )}
                   </div>
@@ -624,7 +626,7 @@ Completion Count: ${task.completionCount}
                 </label>
                 <p className="text-sm text-slate-400">
                   Get notified when tasks are almost due
-                  {Notification.permission === 'denied' && (
+                  {('Notification' in window) && Notification.permission === 'denied' && (
                     <span className="block text-yellow-400 mt-1">
                       ⚠️ Unblock notifications in your browser settings to use this feature
                     </span>
@@ -644,7 +646,7 @@ Completion Count: ${task.completionCount}
                     step="15"
                     value={settings.notificationMinutes}
                     onChange={(e) => {
-                      const newSettings = {...settings, notificationMinutes: parseInt(e.target.value)};
+                      const newSettings = { ...settings, notificationMinutes: parseInt(e.target.value, 10) };
                       setSettings(newSettings);
                       saveSettings(newSettings);
                     }}
@@ -660,7 +662,7 @@ Completion Count: ${task.completionCount}
                     type="checkbox"
                     checked={settings.enableAdaptive}
                     onChange={(e) => {
-                      const newSettings = {...settings, enableAdaptive: e.target.checked};
+                      const newSettings = { ...settings, enableAdaptive: e.target.checked };
                       setSettings(newSettings);
                       saveSettings(newSettings);
                     }}
@@ -684,7 +686,7 @@ Completion Count: ${task.completionCount}
                     step="0.1"
                     value={settings.adaptiveAlpha}
                     onChange={(e) => {
-                      const newSettings = {...settings, adaptiveAlpha: parseFloat(e.target.value)};
+                      const newSettings = { ...settings, adaptiveAlpha: parseFloat(e.target.value) };
                       setSettings(newSettings);
                       saveSettings(newSettings);
                     }}
@@ -706,7 +708,7 @@ Completion Count: ${task.completionCount}
                   max="240"
                   step="15"
                   value={context.availableMins}
-                  onChange={(e) => setContext({...context, availableMins: parseInt(e.target.value)})}
+                  onChange={(e) => setContext({ ...context, availableMins: parseInt(e.target.value, 10) })}
                   className="w-full"
                 />
               </div>
@@ -718,7 +720,7 @@ Completion Count: ${task.completionCount}
                     type="checkbox"
                     checked={settings.explainRankings}
                     onChange={(e) => {
-                      const newSettings = {...settings, explainRankings: e.target.checked};
+                      const newSettings = { ...settings, explainRankings: e.target.checked };
                       setSettings(newSettings);
                       saveSettings(newSettings);
                     }}
@@ -779,7 +781,7 @@ function TaskForm({ onAdd, onCancel }) {
     urgency: 3,
     effortMins: 60,
     dueAt: null,
-    tags: []
+    tags: [],
   });
 
   const handleSubmit = () => {
@@ -794,7 +796,7 @@ function TaskForm({ onAdd, onCancel }) {
       ...prev,
       tags: prev.tags.includes(tag)
         ? prev.tags.filter(t => t !== tag)
-        : [...prev.tags, tag]
+        : [...prev.tags, tag],
     }));
   };
 
@@ -806,7 +808,7 @@ function TaskForm({ onAdd, onCancel }) {
           <input
             type="text"
             value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
             placeholder="What needs to be done?"
           />
@@ -822,7 +824,7 @@ function TaskForm({ onAdd, onCancel }) {
               min="1"
               max="5"
               value={formData.urgency}
-              onChange={(e) => setFormData({...formData, urgency: parseInt(e.target.value)})}
+              onChange={(e) => setFormData({ ...formData, urgency: parseInt(e.target.value, 10) })}
               className="w-full"
             />
           </div>
@@ -837,7 +839,7 @@ function TaskForm({ onAdd, onCancel }) {
               max="240"
               step="15"
               value={formData.effortMins}
-              onChange={(e) => setFormData({...formData, effortMins: parseInt(e.target.value)})}
+              onChange={(e) => setFormData({ ...formData, effortMins: parseInt(e.target.value, 10) })}
               className="w-full"
             />
           </div>
@@ -849,7 +851,7 @@ function TaskForm({ onAdd, onCancel }) {
           </label>
           <input
             type="datetime-local"
-            onChange={(e) => setFormData({...formData, dueAt: e.target.value ? new Date(e.target.value).getTime() : null})}
+            onChange={(e) => setFormData({ ...formData, dueAt: e.target.value ? new Date(e.target.value).getTime() : null })}
             className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
           />
           <p className="text-xs text-slate-400 mt-1">
@@ -906,17 +908,19 @@ function TaskCard({ task, rank, showExplanation, onComplete, onDelete, onDownloa
   const isOverdue = task.dueAt && task.dueAt < Date.now();
 
   return (
-    <div className={`bg-slate-800 rounded-lg p-4 border transition-colors ${
-      isOverdue ? 'border-red-500 bg-red-900/10' : 'border-slate-700 hover:border-slate-600'
-    }`}>
+    <div
+      className={`bg-slate-800 rounded-lg p-4 border transition-colors ${
+        isOverdue ? 'border-red-500 bg-red-900/10' : 'border-slate-700 hover:border-slate-600'
+      }`}
+    >
       <div className="flex items-start gap-4">
         <div className={`${getRankColor(rank)} w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0`}>
           {rank}
         </div>
-        
+
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-lg mb-2">{task.title}</h3>
-          
+
           <div className="flex flex-wrap gap-2 mb-2">
             {task.tags.map(tag => (
               <span key={tag} className="bg-slate-700 px-2 py-1 rounded text-xs">
@@ -939,11 +943,14 @@ function TaskCard({ task, rank, showExplanation, onComplete, onDelete, onDownloa
             <div className="flex items-center gap-2 flex-wrap mt-2">
               <Eye className="w-4 h-4 text-blue-400" />
               {task.explanation.map((reason, i) => (
-                <span key={i} className={`px-2 py-1 rounded text-xs ${
-                  reason.includes('OVERDUE') 
-                    ? 'bg-red-900/50 text-red-300' 
-                    : 'bg-blue-900/30 text-blue-300'
-                }`}>
+                <span
+                  key={i}
+                  className={`px-2 py-1 rounded text-xs ${
+                    reason.includes('OVERDUE')
+                      ? 'bg-red-900/50 text-red-300'
+                      : 'bg-blue-900/30 text-blue-300'
+                  }`}
+                >
                   {reason}
                 </span>
               ))}
